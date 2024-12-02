@@ -1,4 +1,4 @@
-import { query } from 'express-validator';
+import { param, query } from 'express-validator';
 
 const queryParamPage = () =>
   query('page', '')
@@ -20,10 +20,16 @@ const queryParamSearch = () =>
     .isLength({ min: 1 })
     .withMessage('Search query must not be empty');
 
+const paramIntId = () =>
+  param('id')
+    .isInt({ min: 1 })
+    .withMessage('Id must be a positive integer')
+    .toInt();
+
 const postsQueryParams = () => [
   queryParamPage(),
   queryParamSort(),
   queryParamSearch(),
 ];
 
-export default { postsQueryParams };
+export default { postsQueryParams, paramIntId };

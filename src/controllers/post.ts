@@ -19,6 +19,7 @@ const allPostsGet = [
       res.status(400).json({ error: 'Bad Request', ...errors.mapped() });
       return;
     }
+
     const { page = 1, sort = 'desc', q } = matchedData<PostsQueryParams>(req);
     const limit = 6;
     const offset = (page - 1) * limit;
@@ -35,4 +36,27 @@ const allPostsGet = [
   }),
 ];
 
-export default { allPostsGet };
+const postGet = [
+  validation.paramIntId(),
+  asyncHandler(async (req: Request, res: Response) => {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      res.status(400).json({ error: 'Bad Request', ...errors.mapped() });
+      return;
+    }
+
+    const { id } = matchedData<{ id: number }>(req);
+    const post = await db.post.findUnique({
+      where: { id: id, published: true },
+      include: { author: { select: { id: true, username: true } } },
+    });
+    if (!post) {
+      res.status(404).json({ error: 'Not Found' });
+      return;
+    }
+
+    res.json(post);
+  }),
+];
+
+export default { allPostsGet, postGet };
