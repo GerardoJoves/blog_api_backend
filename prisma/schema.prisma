@@ -36,12 +36,15 @@ model Post {
   author   User      @relation(fields: [authorId], references: [id], onDelete: Cascade)
   authorId Int
   Comment  Comment[]
+
+  @@index([createdAt])
 }
 
 model Comment {
   id Int @id @default(autoincrement())
 
   content   String   @db.VarChar(5000)
+  likes     Int      @default(0)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -51,5 +54,5 @@ model Comment {
   replies         Comment[] @relation("CommentReplies")
   authorId        Int
   postId          Int
-  parentCommentId Int
+  parentCommentId Int?
 }
