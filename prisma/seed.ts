@@ -3,18 +3,11 @@ import { faker } from '@faker-js/faker';
 
 const prisma = new PrismaClient();
 
-const images = [
-  'https://images.unsplash.com/photo-1505820013142-f86a3439c5b2?q=80&w=2942&auto=format&fit=crop&ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D',
-  'https://images.unsplash.com/photo-1719937206642-ca0cd57198cc?q=80&w=1374&auto=format&fit=crop&ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D',
-  'https://images.unsplash.com/photo-1476514525535-07fb3b4ae5f1?q=80&w=1470&auto=format&fit=crop&ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D',
-  'https://images.unsplash.com/photo-1486312338219-ce68d2c6f44d?q=80&w=1472&auto=format&fit=crop&ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D',
-];
-
 const generateMockBlogPost = (authorId: number) => {
   const post = {
     authorId,
     published: true,
-    featuredImageUrl: images[Math.floor(Math.random() * 4)],
+    featuredImageUrl: faker.image.urlPicsumPhotos(),
     title: faker.lorem.sentence(),
     content: faker.lorem.paragraphs(4),
     createdAt: faker.date.past(),
@@ -22,6 +15,23 @@ const generateMockBlogPost = (authorId: number) => {
   };
 
   return post;
+};
+
+const generateMockComment = (
+  authorId: number,
+  postId: number,
+  parentCommentId?: number,
+) => {
+  const comment = {
+    authorId,
+    postId,
+    parentCommentId,
+    content: faker.lorem.paragraphs(1),
+    createdAt: faker.date.past(),
+    updatedAt: faker.date.recent(),
+  };
+
+  return comment;
 };
 
 const main = async () => {
@@ -35,8 +45,25 @@ const main = async () => {
     update: {},
   });
 
-  for (let i = 0; i < 10; i++) {
-    await prisma.post.create({ data: generateMockBlogPost(author.id) });
+  for (let i = 0; i < 4; i++) {
+    // Generate 4 posts
+    const post = await prisma.post.create({
+      data: generateMockBlogPost(author.id),
+    });
+
+    for (let i = 0; i < 10; i++) {
+      // Generate 10 comments to post
+      const comment = await prisma.comment.create({
+        data: generateMockComment(author.id, post.id),
+      });
+
+      for (let i = 0; i < 10; i++) {
+        // Generate 10 repies
+        const reply = await prisma.comment.create({
+          data: generateMockComment(author.id, post.id, comment.id),
+        });
+      }
+    }
   }
 };
 
