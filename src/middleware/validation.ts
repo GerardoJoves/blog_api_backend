@@ -1,4 +1,4 @@
-import { param, query } from 'express-validator';
+import { body, param, query } from 'express-validator';
 
 const paramInt = (key: string) =>
   param(key)
@@ -37,6 +37,37 @@ const queryLimit = () =>
     .toInt()
     .customSanitizer((val: number) => (val > 20 ? 20 : val));
 
+const bodyUsername = () => {
+  const minLength = 3;
+  const maxLength = 16;
+  const regex = /^[a-zA-Z0-9_]+$/;
+
+  const errLength = `Username must be ${minLength} to ${maxLength} characters long.`;
+  const errRegex = 'Username can only contain letters, numbers or underscores.';
+
+  return body('username')
+    .trim()
+    .isLength({ min: minLength, max: maxLength })
+    .withMessage(errLength)
+    .matches(regex)
+    .withMessage(errRegex);
+};
+
+const bodyPassword = () => {
+  const minLength = 8;
+  const maxLength = 32;
+  const regex = /^(?=.*[a-zA-Z])(?=.*\d).+$/;
+
+  const errLength = `Password must be ${minLength} to ${maxLength} characters long.`;
+  const errRegex = 'Password must cantain at least one letter and one number.';
+
+  return body('password')
+    .isLength({ min: minLength, max: maxLength })
+    .withMessage(errLength)
+    .matches(regex)
+    .withMessage(errRegex);
+};
+
 const allPostGet = () => [
   queryPage(),
   querySort('created'),
@@ -56,4 +87,12 @@ const commentRepliesGet = () => [
   queryLimit(),
 ];
 
-export default { allPostGet, paramInt, postCommentsGet, commentRepliesGet };
+const userCredentials = () => [bodyPassword(), bodyUsername()];
+
+export default {
+  allPostGet,
+  paramInt,
+  postCommentsGet,
+  commentRepliesGet,
+  userCredentials,
+};
