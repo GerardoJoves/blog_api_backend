@@ -57,30 +57,46 @@ const createComment = [
   passport.authenticate('jwt', { session: false }),
   ...validation.newComment(),
   asyncHandler(async (req: Request, res: Response) => {
-    const user = req.user as Express.User;
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
       res.status(400).json({ error: 'Bad Request', detail: errors.mapped() });
       return;
     }
 
+    const user = req.user as Express.User;
     const data = matchedData<NewCommentData>(req);
     const { postId, parentCommentId, content } = data;
+    const [parentComment, post] = await Promise.all([
+      parentCommentId
+        ? db.comment.findUnique({
+            where: { id: parentCommentId },
+            select: { id: true, authorId: true, postId: true },
+          })
+        : null,
+      db.post.findUnique({
+        where: { id: postId },
+        select: { id: true, published: true },
+      }),
+    ]);
 
-    let parentComment;
-    if (parentCommentId) {
-      parentComment = await db.comment.findUnique({
-        where: { id: parentCommentId },
+    if (!post || post.published === false) {
+      res.status(404).json({
+        error: 'Not Found',
+        detail: 'Post not found',
       });
-    }
-    if (parentCommentId && !parentComment) {
-      res.status(404);
-      res.json({ error: 'Not Found', detail: 'Parent comment not found' });
       return;
     }
-    if (parentComment && parentComment.postId != postId) {
-      res.status(400);
-      res.json({
+
+    if (parentCommentId && !parentComment) {
+      res.status(404).json({
+        error: 'Not Found',
+        detail: 'Parent comment not found',
+      });
+      return;
+    }
+
+    if (parentComment && parentComment.postId != post.id) {
+      res.status(400).json({
         error: 'Bad Request',
         detail:
           "The parent comment's post ID does not match the provided post ID",
