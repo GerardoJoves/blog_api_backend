@@ -142,9 +142,43 @@ const deleteComment = [
   }),
 ];
 
+const updateComment = [
+  passport.authenticate('jwt', { session: false }),
+  validation.commentId(),
+  validation.commentContent(),
+  asyncHandler(async (req: Request, res: Response) => {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      res.status(400).json({ error: 'Bad Request', detail: errors.mapped() });
+      return;
+    }
+
+    const user = req.user as Express.User;
+    const data = matchedData<{ commentId: number; content: string }>(req);
+    const { commentId, content } = data;
+    const comment = await db.comment.findUnique({ where: { id: commentId } });
+
+    if (!comment) {
+      res.status(404).json({ error: 'Not Found' });
+      return;
+    }
+    if (comment.authorId != user.id) {
+      res.status(403).json({ error: 'Forbidden' });
+      return;
+    }
+
+    const commentUpdated = await db.comment.update({
+      where: { id: comment.id },
+      data: { content },
+    });
+    res.json(commentUpdated);
+  }),
+];
+
 export default {
   getPostComments,
   getCommentReplies,
   createComment,
   deleteComment,
+  updateComment,
 };

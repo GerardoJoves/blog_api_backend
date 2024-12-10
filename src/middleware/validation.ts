@@ -146,4 +146,5 @@ export default {
   userCredentials,
   postId,
   commentId,
+  commentContent,
 };
