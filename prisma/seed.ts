@@ -1,5 +1,6 @@
 import { PrismaClient } from '@prisma/client';
 import { faker } from '@faker-js/faker';
+import bcrypt from 'bcryptjs';
 
 const prisma = new PrismaClient();
 
@@ -7,7 +8,6 @@ const generateMockBlogPost = (authorId: number) => {
   const post = {
     authorId,
     published: true,
-    featuredImageUrl: faker.image.urlPicsumPhotos(),
     title: faker.lorem.sentence(),
     content: faker.lorem.paragraphs(4),
     createdAt: faker.date.past(),
@@ -37,10 +37,11 @@ const generateMockComment = (
 const main = async () => {
   console.log('seeding...');
   const author = await prisma.user.upsert({
-    where: { username: 'John_Doe' },
+    where: { username: 'john_doe' },
     create: {
-      username: 'John_Doe',
-      passwordHash: '123',
+      username: 'john_doe',
+      role: 'ADMIN',
+      passwordHash: await bcrypt.hash('password123', 10),
     },
     update: {},
   });

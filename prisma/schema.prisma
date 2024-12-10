@@ -32,12 +32,11 @@ model User {
 model Post {
   id Int @id @default(autoincrement())
 
-  title            String   @db.VarChar(100)
-  content          String
-  featuredImageUrl String
-  published        Boolean  @default(false)
-  createdAt        DateTime @default(now())
-  updatedAt        DateTime @updatedAt
+  title     String   @db.VarChar(100)
+  content   String
+  published Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   author   User      @relation(fields: [authorId], references: [id], onDelete: Cascade)
   authorId Int
