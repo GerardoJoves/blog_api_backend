@@ -83,7 +83,7 @@ const createComment = [
       res.json({
         error: 'Bad Request',
         detail:
-          "The parent comment's post ID does not match the provided post ID.",
+          "The parent comment's post ID does not match the provided post ID",
       });
       return;
     }
@@ -95,4 +95,40 @@ const createComment = [
   }),
 ];
 
-export default { getPostComments, getCommentReplies, createComment };
+const deleteComment = [
+  passport.authenticate('jwt', { session: false }),
+  validation.commentId(),
+  asyncHandler(async (req: Request, res: Response) => {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      res.status(400).json({ error: 'Bad Request', detail: errors.mapped() });
+      return;
+    }
+
+    const user = req.user as Express.User;
+    const { commentId } = matchedData<{ commentId: number }>(req);
+    const comment = await db.comment.findUnique({
+      where: { id: commentId },
+      select: { id: true, authorId: true },
+    });
+
+    if (!comment) {
+      res.status(404).json({ error: 'Not Found' });
+      return;
+    }
+    if (comment.authorId != user.id) {
+      res.status(403).json({ error: 'Forbidden' });
+      return;
+    }
+
+    await db.comment.delete({ where: { id: comment.id } });
+    res.json({ message: 'Comment deleted sucessfully' });
+  }),
+];
+
+export default {
+  getPostComments,
+  getCommentReplies,
+  createComment,
+  deleteComment,
+};

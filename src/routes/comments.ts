@@ -4,7 +4,8 @@ import commentController from '../controllers/comment.js';
 
 const router = Router();
 
-router.get('/:commentId/replies', commentController.getCommentReplies);
 router.post('/', commentController.createComment);
+router.get('/:commentId/replies', commentController.getCommentReplies);
+router.delete('/:commentId', commentController.deleteComment);
 
 export default router;
