@@ -91,4 +91,27 @@ const createPost = [
   }),
 ];
 
-export default { getPosts, getPost, createPost };
+const updatePost = [
+  passport.authenticate('jwt', { session: false }),
+  validation.postId(),
+  ...validation.postData(),
+  asyncHandler(async (req: Request, res: Response) => {
+    const user = req.user as Express.User;
+    if (user.role != 'ADMIN') {
+      res.status(403).json({ error: 'Forbidden' });
+      return;
+    }
+
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      res.status(400).json({ error: 'Bad Request', detail: errors.mapped() });
+      return;
+    }
+
+    const { postId, ...data } = matchedData<{ postId: number } & PostData>(req);
+    const post = await db.post.update({ where: { id: postId }, data });
+    res.status(200).json(post);
+  }),
+];
+
+export default { getPosts, getPost, createPost, updatePost };

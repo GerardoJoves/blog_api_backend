@@ -8,6 +8,7 @@ const router = Router();
 router.get('/', postController.getPosts);
 router.post('/', postController.createPost);
 router.get('/:postId', postController.getPost);
+router.put('/:postId', postController.updatePost);
 router.get('/:postId/comments', commentController.getPostComments);
 
 export default router;
