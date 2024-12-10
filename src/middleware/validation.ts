@@ -1,7 +1,28 @@
 import { body, param, query } from 'express-validator';
 
-const paramInt = (key: string) =>
+type Order = 'asc' | 'desc';
+
+export type PostFilterOptions = {
+  page?: number;
+  sort?: { by: string; order: Order };
+  limit?: number;
+  keyword?: string;
+};
+
+export type CommentFilterOptions = {
+  sort?: { by: 'created' | 'likes'; order: Order };
+  cursorId?: number;
+  limit?: number;
+};
+
+const paramIntId = (key: string) =>
   param(key)
+    .isInt({ min: 1 })
+    .withMessage('Id must be a positive integer')
+    .toInt();
+
+const queryIntId = (key: string) =>
+  query(key)
     .isInt({ min: 1 })
     .withMessage('Id must be a positive integer')
     .toInt();
@@ -13,18 +34,19 @@ const queryPage = () =>
     .withMessage('Page must be a positive integer')
     .toInt();
 
-const querySort = (...fieldOptions: string[]) =>
-  query('sort')
+const querySort = ({ options }: { options: string[] }) => {
+  const regex = new RegExp('^(asc|desc)_(' + options.join('|') + ')$');
+  return query('sort')
     .optional()
-    .matches(new RegExp(`^(\\+|-)(${fieldOptions.join('|')})$`))
-    .customSanitizer((queryString: string) => {
-      const order = queryString[0] === '+' ? 'asc' : 'desc';
-      const field = queryString.slice(1);
-      return { by: field, order };
+    .matches(regex)
+    .customSanitizer((sortValue: string) => {
+      const [sortOrder, sortBy] = sortValue.split('_');
+      return { by: sortBy, order: sortOrder };
     });
+};
 
-const querySearch = () =>
-  query('q')
+const queryKeyword = () =>
+  query('keyword')
     .optional()
     .trim()
     .isLength({ min: 1 })
@@ -68,31 +90,28 @@ const bodyPassword = () => {
     .withMessage(errRegex);
 };
 
-const allPostGet = () => [
+const postFilterOptions = () => [
   queryPage(),
-  querySort('created'),
-  querySearch(),
   queryLimit(),
+  queryKeyword(),
+  querySort({ options: ['created'] }),
 ];
 
-const postCommentsGet = () => [
-  querySort('created', 'likes'),
-  paramInt('postId'),
+const commentFilterOptions = () => [
+  queryIntId('cursorId').optional(),
   queryLimit(),
+  querySort({ options: ['created', 'likes'] }),
 ];
 
-const commentRepliesGet = () => [
-  querySort('created', 'likes'),
-  paramInt('commentId'),
-  queryLimit(),
-];
+const postId = () => paramIntId('postId');
+const commentId = () => paramIntId('commentId');
 
 const userCredentials = () => [bodyPassword(), bodyUsername()];
 
 export default {
-  allPostGet,
-  paramInt,
-  postCommentsGet,
-  commentRepliesGet,
+  postFilterOptions,
+  commentFilterOptions,
   userCredentials,
+  postId,
+  commentId,
 };

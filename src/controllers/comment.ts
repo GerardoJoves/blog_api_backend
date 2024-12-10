@@ -1,83 +1,53 @@
-import { Request, Response } from 'express';
+import { RequestHandler } from 'express';
 import { matchedData, validationResult } from 'express-validator';
 import asyncHandler from 'express-async-handler';
 
 import db from '../lib/prisma.js';
-import validation from 'src/middleware/validation.js';
+import validation, { CommentFilterOptions } from 'src/middleware/validation.js';
 import { Prisma } from '@prisma/client';
 
-type Order = 'asc' | 'desc';
-
-interface CommentsGetParams {
-  sort?: { by: string; order: Order };
-  cursorId?: number;
-  limit?: number;
-}
-
-interface PostCommentsGetParams extends CommentsGetParams {
+type CommentFilteringCriteria = CommentFilterOptions & {
   postId: number;
-}
+  commentId?: number;
+};
 
-interface CommentRepliesGetParams extends CommentsGetParams {
-  commentId: number;
-}
+const getCommentsHandler: RequestHandler = asyncHandler(async (req, res) => {
+  const errors = validationResult(req);
+  if (!errors.isEmpty()) {
+    res.status(400).json({ error: 'Bad Request', ...errors.mapped() });
+    return;
+  }
 
-const postCommentsGet = [
-  ...validation.postCommentsGet(),
-  asyncHandler(async (req: Request, res: Response) => {
-    const errors = validationResult(req);
-    if (!errors.isEmpty()) {
-      res.status(400).json({ error: 'Bad Request', ...errors.mapped() });
-      return;
-    }
+  const filterOptions = matchedData<CommentFilteringCriteria>(req);
+  const { postId, commentId, sort, cursorId, limit = 10 } = filterOptions;
 
-    const {
-      postId,
-      sort = { by: 'created', order: 'desc' },
-      cursorId,
-      limit = 10,
-    } = matchedData<PostCommentsGetParams>(req);
+  const dbQuery: Prisma.CommentFindManyArgs = {
+    take: limit,
+    where: { postId, parentCommentId: { equals: commentId ?? null } },
+    orderBy: { createdAt: 'desc' },
+  };
+  if (cursorId) dbQuery.cursor = { id: cursorId };
+  if (sort?.by === 'created') dbQuery.orderBy = { createdAt: sort.order };
+  if (sort?.by === 'likes') dbQuery.orderBy = { likes: sort.order };
 
-    const dbQuery: Prisma.CommentFindManyArgs = {
-      take: limit,
-      where: { postId, parentCommentId: { equals: null } },
-    };
-    if (cursorId) dbQuery.cursor = { id: cursorId };
-    if (sort?.by === 'created') dbQuery.orderBy = { createdAt: sort.order };
-    if (sort?.by === 'likes') dbQuery.orderBy = { createdAt: sort.order };
-    const comments = await db.comment.findMany(dbQuery);
-    const totalComments = await db.comment.count({ where: dbQuery.where });
-    res.json({ comments, totalComments });
-  }),
+  const [comments, totalComments] = await db.$transaction([
+    db.comment.findMany(dbQuery),
+    db.comment.count({ where: dbQuery.where }),
+  ]);
+  res.json({ comments, totalComments });
+});
+
+const getPostComments = [
+  validation.postId(),
+  ...validation.commentFilterOptions(),
+  getCommentsHandler,
 ];
 
-const commentRepliesGet = [
-  ...validation.commentRepliesGet(),
-  asyncHandler(async (req: Request, res: Response) => {
-    const errors = validationResult(req);
-    if (!errors.isEmpty()) {
-      res.status(400).json({ error: 'Bad Request', ...errors.mapped() });
-      return;
-    }
-
-    const {
-      commentId,
-      sort = { by: 'created', order: 'desc' },
-      cursorId,
-      limit = 10,
-    } = matchedData<CommentRepliesGetParams>(req);
-
-    const dbQuery: Prisma.CommentFindManyArgs = {
-      take: limit,
-      where: { parentCommentId: commentId },
-    };
-    if (cursorId) dbQuery.cursor = { id: cursorId };
-    if (sort?.by === 'created') dbQuery.orderBy = { createdAt: sort.order };
-    if (sort?.by === 'likes') dbQuery.orderBy = { createdAt: sort.order };
-    const replies = await db.comment.findMany(dbQuery);
-    const totalReplies = await db.comment.count({ where: dbQuery.where });
-    res.json({ replies, totalReplies });
-  }),
+const getCommentReplies = [
+  validation.postId(),
+  validation.commentId(),
+  ...validation.commentFilterOptions(),
+  getCommentsHandler,
 ];
 
-export default { postCommentsGet, commentRepliesGet };
+export default { getPostComments, getCommentReplies };

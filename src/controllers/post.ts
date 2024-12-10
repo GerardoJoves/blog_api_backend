@@ -3,46 +3,37 @@ import { matchedData, validationResult } from 'express-validator';
 import asyncHandler from 'express-async-handler';
 
 import db from '../lib/prisma.js';
-import validation from 'src/middleware/validation.js';
+import validation, { PostFilterOptions } from 'src/middleware/validation.js';
 import { Prisma } from '@prisma/client';
 
-type Order = 'asc' | 'desc';
-
-type AllPostsGetParams = {
-  page?: number;
-  sort?: { by: string; order: Order };
-  limit?: number;
-  q?: string;
-};
-
-const allPostsGet = [
-  ...validation.allPostGet(),
+const getPosts = [
+  ...validation.postFilterOptions(),
   asyncHandler(async (req: Request, res: Response) => {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
-      res.status(400).json({ error: 'Bad Request', ...errors.mapped() });
+      res.status(400).json({ error: 'Bad Request', detail: errors.mapped() });
       return;
     }
 
-    const {
-      page = 1,
-      limit = 10,
-      sort = { by: 'created', order: 'desc' },
-      q,
-    } = matchedData<AllPostsGetParams>(req);
-
+    const filterOptions = matchedData<PostFilterOptions>(req);
+    const { page = 1, limit = 10, sort, keyword } = filterOptions;
     const offset = (page - 1) * limit;
     const dbQuery: Prisma.PostFindFirstArgs = {
       skip: offset,
       take: limit,
       where: { published: true },
+      orderBy: { createdAt: 'desc' }, // default order
     };
-    if (sort?.by === 'created') dbQuery.orderBy = { createdAt: sort.order };
-    if (q)
+    if (sort?.by === 'created') {
+      dbQuery.orderBy = { createdAt: sort.order };
+    }
+    if (keyword) {
       dbQuery.where = {
+        title: { contains: keyword, mode: 'insensitive' },
         published: true,
-        title: { contains: q, mode: 'insensitive' },
       };
+    }
+
     const [posts, totalPosts] = await db.$transaction([
       db.post.findMany(dbQuery),
       db.post.count({ where: dbQuery.where }),
@@ -51,12 +42,12 @@ const allPostsGet = [
   }),
 ];
 
-const postGet = [
-  validation.paramInt('postId'),
+const getPost = [
+  validation.postId(),
   asyncHandler(async (req: Request, res: Response) => {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
-      res.status(400).json({ error: 'Bad Request', ...errors.mapped() });
+      res.status(400).json({ error: 'Bad Request', detail: errors.mapped() });
       return;
     }
 
@@ -74,4 +65,4 @@ const postGet = [
   }),
 ];
 
-export default { allPostsGet, postGet };
+export default { getPosts, getPost };
