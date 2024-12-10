@@ -11,8 +11,14 @@ export type PostFilterOptions = {
 
 export type CommentFilterOptions = {
   sort?: { by: 'created' | 'likes'; order: Order };
-  cursorId?: number;
+  cursor?: number;
   limit?: number;
+};
+
+export type NewCommentData = {
+  content: string;
+  postId: number;
+  parentCommentId?: number;
 };
 
 const paramIntId = (key: string) =>
@@ -27,6 +33,12 @@ const queryIntId = (key: string) =>
     .withMessage('Id must be a positive integer')
     .toInt();
 
+const bodyIntId = (key: string) =>
+  body(key)
+    .isInt({ min: 1 })
+    .withMessage('Id must be a positive integer')
+    .toInt();
+
 const queryPage = () =>
   query('page', '')
     .optional()
@@ -34,16 +46,14 @@ const queryPage = () =>
     .withMessage('Page must be a positive integer')
     .toInt();
 
-const querySort = ({ options }: { options: string[] }) => {
-  const regex = new RegExp('^(asc|desc)_(' + options.join('|') + ')$');
-  return query('sort')
+const querySort = ({ options }: { options: string[] }) =>
+  query('sort')
     .optional()
-    .matches(regex)
+    .matches(new RegExp('^(asc|desc)_(' + options.join('|') + ')$'))
     .customSanitizer((sortValue: string) => {
       const [sortOrder, sortBy] = sortValue.split('_');
       return { by: sortBy, order: sortOrder };
     });
-};
 
 const queryKeyword = () =>
   query('keyword')
@@ -59,36 +69,26 @@ const queryLimit = () =>
     .toInt()
     .customSanitizer((val: number) => (val > 20 ? 20 : val));
 
-const bodyUsername = () => {
-  const minLength = 3;
-  const maxLength = 16;
-  const regex = /^[a-zA-Z0-9_]+$/;
-
-  const errLength = `Username must be ${minLength} to ${maxLength} characters long.`;
-  const errRegex = 'Username can only contain letters, numbers or underscores.';
-
-  return body('username')
+const username = () =>
+  body('username')
     .trim()
-    .isLength({ min: minLength, max: maxLength })
-    .withMessage(errLength)
-    .matches(regex)
-    .withMessage(errRegex);
-};
+    .isLength({ min: 3, max: 16 })
+    .withMessage('Username must be 3 to 16 characters long.')
+    .matches(/^[a-zA-Z0-9_]+$/)
+    .withMessage('Username can only contain letters, numbers or underscores.');
 
-const bodyPassword = () => {
-  const minLength = 8;
-  const maxLength = 32;
-  const regex = /^(?=.*[a-zA-Z])(?=.*\d).+$/;
+const password = () =>
+  body('password')
+    .isLength({ min: 8, max: 32 })
+    .withMessage('Password must be 8 to 32 characters long.')
+    .matches(/^(?=.*[a-zA-Z])(?=.*\d).+$/)
+    .withMessage('Password must contain at least one letter and one number.');
 
-  const errLength = `Password must be ${minLength} to ${maxLength} characters long.`;
-  const errRegex = 'Password must cantain at least one letter and one number.';
-
-  return body('password')
-    .isLength({ min: minLength, max: maxLength })
-    .withMessage(errLength)
-    .matches(regex)
-    .withMessage(errRegex);
-};
+const commentContent = () =>
+  body('content')
+    .trim()
+    .isLength({ min: 1, max: 500 })
+    .withMessage('Comment must be 1 to 500 characters long.');
 
 const postFilterOptions = () => [
   queryPage(),
@@ -98,7 +98,7 @@ const postFilterOptions = () => [
 ];
 
 const commentFilterOptions = () => [
-  queryIntId('cursorId').optional(),
+  queryIntId('cursor').optional(),
   queryLimit(),
   querySort({ options: ['created', 'likes'] }),
 ];
@@ -106,9 +106,16 @@ const commentFilterOptions = () => [
 const postId = () => paramIntId('postId');
 const commentId = () => paramIntId('commentId');
 
-const userCredentials = () => [bodyPassword(), bodyUsername()];
+const userCredentials = () => [password(), username()];
+
+const newComment = () => [
+  bodyIntId('postId'),
+  bodyIntId('parentCommentId').optional(),
+  commentContent(),
+];
 
 export default {
+  newComment,
   postFilterOptions,
   commentFilterOptions,
   userCredentials,

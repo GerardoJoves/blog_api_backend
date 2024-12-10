@@ -1,13 +1,17 @@
-import { RequestHandler } from 'express';
+import { RequestHandler, Request, Response } from 'express';
 import { matchedData, validationResult } from 'express-validator';
 import asyncHandler from 'express-async-handler';
 
 import db from '../lib/prisma.js';
-import validation, { CommentFilterOptions } from 'src/middleware/validation.js';
+import validation, {
+  CommentFilterOptions,
+  NewCommentData,
+} from 'src/middleware/validation.js';
 import { Prisma } from '@prisma/client';
+import passport from 'passport';
 
 type CommentFilteringCriteria = CommentFilterOptions & {
-  postId: number;
+  postId?: number;
   commentId?: number;
 };
 
@@ -19,14 +23,14 @@ const getCommentsHandler: RequestHandler = asyncHandler(async (req, res) => {
   }
 
   const filterOptions = matchedData<CommentFilteringCriteria>(req);
-  const { postId, commentId, sort, cursorId, limit = 10 } = filterOptions;
+  const { postId, commentId, sort, cursor, limit = 10 } = filterOptions;
 
   const dbQuery: Prisma.CommentFindManyArgs = {
     take: limit,
     where: { postId, parentCommentId: { equals: commentId ?? null } },
     orderBy: { createdAt: 'desc' },
   };
-  if (cursorId) dbQuery.cursor = { id: cursorId };
+  if (cursor) dbQuery.cursor = { id: cursor };
   if (sort?.by === 'created') dbQuery.orderBy = { createdAt: sort.order };
   if (sort?.by === 'likes') dbQuery.orderBy = { likes: sort.order };
 
@@ -44,10 +48,51 @@ const getPostComments = [
 ];
 
 const getCommentReplies = [
-  validation.postId(),
   validation.commentId(),
   ...validation.commentFilterOptions(),
   getCommentsHandler,
 ];
 
-export default { getPostComments, getCommentReplies };
+const createComment = [
+  passport.authenticate('jwt', { session: false }),
+  ...validation.newComment(),
+  asyncHandler(async (req: Request, res: Response) => {
+    const user = req.user as Express.User;
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      res.status(400).json({ error: 'Bad Request', detail: errors.mapped() });
+      return;
+    }
+
+    const data = matchedData<NewCommentData>(req);
+    const { postId, parentCommentId, content } = data;
+
+    let parentComment;
+    if (parentCommentId) {
+      parentComment = await db.comment.findUnique({
+        where: { id: parentCommentId },
+      });
+    }
+    if (parentCommentId && !parentComment) {
+      res.status(404);
+      res.json({ error: 'Not Found', detail: 'Parent comment not found' });
+      return;
+    }
+    if (parentComment && parentComment.postId != postId) {
+      res.status(400);
+      res.json({
+        error: 'Bad Request',
+        detail:
+          "The parent comment's post ID does not match the provided post ID.",
+      });
+      return;
+    }
+
+    const newComment = await db.comment.create({
+      data: { authorId: user.id, postId, parentCommentId, content },
+    });
+    res.status(201).json(newComment);
+  }),
+];
+
+export default { getPostComments, getCommentReplies, createComment };
