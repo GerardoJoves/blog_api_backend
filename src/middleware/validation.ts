@@ -21,6 +21,12 @@ export type NewCommentData = {
   parentCommentId?: number;
 };
 
+export type PostData = {
+  title: string;
+  content: string;
+  published: boolean;
+};
+
 const paramIntId = (key: string) =>
   param(key)
     .isInt({ min: 1 })
@@ -90,6 +96,24 @@ const commentContent = () =>
     .isLength({ min: 1, max: 500 })
     .withMessage('Comment must be 1 to 500 characters long.');
 
+const postContent = () =>
+  body('content')
+    .trim()
+    .isLength({ min: 1 })
+    .withMessage('Post content can not be empty.');
+
+const postTitle = () =>
+  body('title')
+    .trim()
+    .isLength({ min: 1 })
+    .withMessage('Post title can not be empty.');
+
+const postData = () => [
+  postContent(),
+  postTitle(),
+  body('published').isBoolean().toBoolean(),
+];
+
 const postFilterOptions = () => [
   queryPage(),
   queryLimit(),
@@ -115,6 +139,7 @@ const newComment = () => [
 ];
 
 export default {
+  postData,
   newComment,
   postFilterOptions,
   commentFilterOptions,
