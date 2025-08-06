@@ -27,6 +27,7 @@ const getPosts = [
       take: limit,
       where: { published: true },
       orderBy: { createdAt: 'desc' }, // default order
+      include: { author: { select: { username: true } } },
     };
     if (sort?.by === 'created') {
       dbQuery.orderBy = { createdAt: sort.order };
