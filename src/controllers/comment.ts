@@ -11,7 +11,7 @@ import { Prisma } from '@prisma/client';
 import passport from 'passport';
 
 type CommentFilteringCriteria = CommentFilterOptions & {
-  postId?: number;
+  postId: number;
   commentId?: number;
 };
 
@@ -23,19 +23,30 @@ const getCommentsHandler: RequestHandler = asyncHandler(async (req, res) => {
   }
 
   const filterOptions = matchedData<CommentFilteringCriteria>(req);
-  const { postId, commentId, sort, cursor, limit = 10 } = filterOptions;
+  const {
+    postId,
+    commentId: parentCommentId = null,
+    sort,
+    cursor,
+    limit = 10,
+  } = filterOptions;
 
-  const dbQuery: Prisma.CommentFindManyArgs = {
+  let orderBy: Prisma.CommentOrderByWithAggregationInput;
+  if (sort?.by === 'created') orderBy = { createdAt: sort.order };
+  else if (sort?.by === 'likes') orderBy = { likes: sort.order };
+  else orderBy = { createdAt: 'desc' };
+
+  const comments = await db.comment.findMany({
+    where: { postId, parentCommentId },
+    cursor: cursor ? { id: cursor } : undefined,
     take: limit + 1,
-    where: { postId, parentCommentId: { equals: commentId ?? null } },
-    orderBy: { createdAt: 'desc' },
-    include: { author: { select: { username: true } } },
-  };
-  if (cursor) dbQuery.cursor = { id: cursor };
-  if (sort?.by === 'created') dbQuery.orderBy = { createdAt: sort.order };
-  if (sort?.by === 'likes') dbQuery.orderBy = { likes: sort.order };
+    orderBy,
+    include: {
+      author: { select: { username: true } },
+      _count: { select: { replies: true } },
+    },
+  });
 
-  const comments = await db.comment.findMany(dbQuery);
   let nextCursor: number | null = null;
   let hasMore = false;
 
