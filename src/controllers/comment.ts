@@ -29,6 +29,7 @@ const getCommentsHandler: RequestHandler = asyncHandler(async (req, res) => {
     take: limit,
     where: { postId, parentCommentId: { equals: commentId ?? null } },
     orderBy: { createdAt: 'desc' },
+    include: { author: { select: { username: true } } },
   };
   if (cursor) dbQuery.cursor = { id: cursor };
   if (sort?.by === 'created') dbQuery.orderBy = { createdAt: sort.order };
