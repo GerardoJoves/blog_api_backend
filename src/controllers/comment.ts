@@ -26,7 +26,7 @@ const getCommentsHandler: RequestHandler = asyncHandler(async (req, res) => {
   const { postId, commentId, sort, cursor, limit = 10 } = filterOptions;
 
   const dbQuery: Prisma.CommentFindManyArgs = {
-    take: limit,
+    take: limit + 1,
     where: { postId, parentCommentId: { equals: commentId ?? null } },
     orderBy: { createdAt: 'desc' },
     include: { author: { select: { username: true } } },
@@ -35,11 +35,17 @@ const getCommentsHandler: RequestHandler = asyncHandler(async (req, res) => {
   if (sort?.by === 'created') dbQuery.orderBy = { createdAt: sort.order };
   if (sort?.by === 'likes') dbQuery.orderBy = { likes: sort.order };
 
-  const [comments, totalComments] = await db.$transaction([
-    db.comment.findMany(dbQuery),
-    db.comment.count({ where: dbQuery.where }),
-  ]);
-  res.json({ comments, totalComments });
+  const comments = await db.comment.findMany(dbQuery);
+  let nextCursor: number | null = null;
+  let hasMore = false;
+
+  if (comments.length > limit) {
+    hasMore = true;
+    comments.pop();
+    nextCursor = comments[comments.length - 1].id;
+  }
+
+  res.json({ comments, nextCursor, hasMore });
 });
 
 const getPostComments = [
