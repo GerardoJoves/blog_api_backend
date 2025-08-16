@@ -4,13 +4,17 @@ import bcrypt from 'bcryptjs';
 
 const prisma = new PrismaClient();
 
-const generateMockBlogPost = (authorId: number) => {
+const generateMockBlogPost = (
+  authorId: number,
+  title?: string,
+  createdAt?: Date,
+) => {
   const post = {
     authorId,
     published: true,
-    title: faker.lorem.sentence(),
-    content: faker.lorem.paragraphs(4),
-    createdAt: faker.date.past(),
+    title: title ?? faker.lorem.sentence(),
+    content: faker.lorem.paragraphs(5, '\n\n'),
+    createdAt: createdAt ?? faker.date.past(),
     updatedAt: faker.date.recent(),
   };
 
@@ -21,11 +25,13 @@ const generateMockComment = (
   authorId: number,
   postId: number,
   parentCommentId?: number,
+  targetUserId?: number,
 ) => {
   const comment = {
     authorId,
     postId,
     parentCommentId,
+    targetUserId,
     content: faker.lorem.paragraphs(1),
     createdAt: faker.date.past(),
     updatedAt: faker.date.recent(),
@@ -36,6 +42,7 @@ const generateMockComment = (
 
 const main = async () => {
   console.log('seeding...');
+
   const author = await prisma.user.upsert({
     where: { username: 'john_doe' },
     create: {
@@ -46,25 +53,62 @@ const main = async () => {
     update: {},
   });
 
-  for (let i = 0; i < 4; i++) {
-    // Generate 4 posts
-    const post = await prisma.post.create({
-      data: generateMockBlogPost(author.id),
+  const user = await prisma.user.upsert({
+    where: { username: 'david_smith' },
+    create: {
+      username: 'david_smith',
+      role: 'USER',
+      passwordHash: await bcrypt.hash('password123', 10),
+    },
+    update: {},
+  });
+
+  const post = await prisma.post.create({
+    data: generateMockBlogPost(
+      author.id,
+      'Mock blog post with populated comment section',
+      new Date(),
+    ),
+  });
+
+  for (let i = 0; i < 15; i++) {
+    // Generate post comments
+    const comment = await prisma.comment.create({
+      data: generateMockComment(user.id, post.id),
     });
 
-    for (let i = 0; i < 10; i++) {
-      // Generate 10 comments to post
-      const comment = await prisma.comment.create({
-        data: generateMockComment(author.id, post.id),
-      });
-
-      for (let i = 0; i < 10; i++) {
-        // Generate 10 repies
-        const reply = await prisma.comment.create({
-          data: generateMockComment(author.id, post.id, comment.id),
+    for (let i = 0; i < 15; i++) {
+      // Generate replies per comment
+      const parentComment = comment;
+      if (i % 2 === 0) {
+        // Author replies to user comment
+        await prisma.comment.create({
+          data: generateMockComment(
+            author.id,
+            post.id,
+            parentComment.id,
+            user.id,
+          ),
+        });
+      } else {
+        // User replies to author reply
+        await prisma.comment.create({
+          data: generateMockComment(
+            user.id,
+            post.id,
+            parentComment.id,
+            author.id,
+          ),
         });
       }
     }
+  }
+
+  for (let i = 0; i < 20; i++) {
+    // Generate 30 aditional posts for pagination
+    const post = await prisma.post.create({
+      data: generateMockBlogPost(author.id),
+    });
   }
 };
 

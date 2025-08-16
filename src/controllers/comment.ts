@@ -42,8 +42,9 @@ const getCommentsHandler: RequestHandler = asyncHandler(async (req, res) => {
     take: limit + 1,
     orderBy,
     include: {
-      author: { select: { username: true } },
-      _count: { select: { replies: true } },
+      author: { select: { id: true, username: true } },
+      targetUser: { select: { id: true, username: true } },
+      _count: { select: { childComments: true } },
     },
   });
 
@@ -52,8 +53,8 @@ const getCommentsHandler: RequestHandler = asyncHandler(async (req, res) => {
 
   if (comments.length > limit) {
     hasMore = true;
-    comments.pop();
-    nextCursor = comments[comments.length - 1].id;
+    const lastComment = comments.pop();
+    if (lastComment) nextCursor = lastComment.id;
   }
 
   res.json({ comments, nextCursor, hasMore });
@@ -83,18 +84,36 @@ const createComment = [
 
     const user = req.user as Express.User;
     const data = matchedData<NewCommentData>(req);
-    const { postId, parentCommentId, content } = data;
-    const [parentComment, post] = await Promise.all([
+    const { postId, parentCommentId, targetUserId, content } = data;
+
+    const isValidRequest =
+      (parentCommentId && targetUserId) || (!parentCommentId && !targetUserId);
+    if (!isValidRequest) {
+      res.status(400).json({
+        error: 'Bad Request',
+        detail:
+          'Invalid comment structure. A base comment cannot have a target user, and a reply must have both a parent comment ID and a target user.',
+      });
+      return;
+    }
+
+    const [post, parentComment, validSiblingReplyTarget] = await Promise.all([
+      db.post.findUnique({
+        where: { id: postId },
+        select: { id: true, published: true },
+      }),
       parentCommentId
         ? db.comment.findUnique({
             where: { id: parentCommentId },
             select: { id: true, authorId: true, postId: true },
           })
         : null,
-      db.post.findUnique({
-        where: { id: postId },
-        select: { id: true, published: true },
-      }),
+      targetUserId
+        ? db.comment.findFirst({
+            where: { postId, authorId: targetUserId, parentCommentId },
+            select: { id: true },
+          })
+        : null,
     ]);
 
     if (!post || post.published === false) {
@@ -120,6 +139,17 @@ const createComment = [
           "The parent comment's post ID does not match the provided post ID",
       });
       return;
+    }
+
+    const isInvalidTarget =
+      targetUserId &&
+      targetUserId !== parentComment?.authorId &&
+      !validSiblingReplyTarget;
+    if (isInvalidTarget) {
+      res.status(400).json({
+        error: 'Bad Request',
+        detail: 'The specified user cannot be replied to in this context.',
+      });
     }
 
     const newComment = await db.comment.create({

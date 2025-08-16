@@ -19,6 +19,7 @@ export type NewCommentData = {
   content: string;
   postId: number;
   parentCommentId?: number;
+  targetUserId?: number;
 };
 
 export type PostData = {
@@ -135,6 +136,7 @@ const userCredentials = () => [password(), username()];
 const newComment = () => [
   bodyIntId('postId'),
   bodyIntId('parentCommentId').optional(),
+  bodyIntId('targetUserId').optional(),
   commentContent(),
 ];
 
