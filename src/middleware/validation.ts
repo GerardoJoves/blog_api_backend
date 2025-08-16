@@ -1,5 +1,7 @@
 import { body, param, query } from 'express-validator';
 
+import db from '../lib/prisma.js';
+
 type Order = 'asc' | 'desc';
 
 export type PostFilterOptions = {
@@ -84,6 +86,12 @@ const username = () =>
     .matches(/^[a-zA-Z0-9_]+$/)
     .withMessage('Username can only contain letters, numbers or underscores.');
 
+const isUsernameAvailable = () =>
+  body('username').custom(async (username: string) => {
+    const userFound = await db.user.findUnique({ where: { username } });
+    if (userFound) throw new Error('Username already exists');
+  });
+
 const password = () =>
   body('password')
     .isLength({ min: 8, max: 32 })
@@ -149,4 +157,5 @@ export default {
   postId,
   commentId,
   commentContent,
+  isUsernameAvailable,
 };

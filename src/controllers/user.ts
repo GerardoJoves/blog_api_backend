@@ -31,6 +31,7 @@ function generateAccessToken(user: Express.User): Promise<string> {
 
 const register = [
   ...validation.userCredentials(),
+  validation.isUsernameAvailable(),
   asyncHandler(async (req: Request, res: Response) => {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
@@ -39,12 +40,6 @@ const register = [
     }
 
     const { username, password } = matchedData<UserCredentials>(req);
-    const userFound = await db.user.findUnique({ where: { username } });
-    if (userFound) {
-      res.status(409).json({ error: 'Username already exists' });
-      return;
-    }
-
     const passwordHash = await bcrypt.hash(password, 10);
     const user = await db.user.create({
       data: { username, passwordHash },
