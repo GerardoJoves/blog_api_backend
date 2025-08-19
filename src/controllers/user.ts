@@ -1,4 +1,4 @@
-import { Request, Response } from 'express';
+import { NextFunction, Request, Response } from 'express';
 import bcrypt from 'bcryptjs';
 import asyncHandler from 'express-async-handler';
 import { validationResult, matchedData } from 'express-validator';
@@ -35,7 +35,11 @@ const register = [
   asyncHandler(async (req: Request, res: Response) => {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
-      res.status(400).json({ error: 'Bad Request', detail: errors.array() });
+      res.status(400).json({
+        type: 'validation',
+        error: 'Bad Request',
+        detail: errors.mapped(),
+      });
       return;
     }
 
@@ -50,9 +54,37 @@ const register = [
   }),
 ];
 
+interface AuthenticationError extends Error {
+  name: 'AuthenticationError';
+}
+
+function isAuthenticationError(err: unknown): err is AuthenticationError {
+  return (
+    typeof err === 'object' &&
+    err !== null &&
+    'name' in err &&
+    (err as { name: string }).name === 'AuthenticationError'
+  );
+}
+
 const login = [
   ...validation.userCredentials(),
-  passport.authenticate('local', { session: false }),
+
+  (req: Request, res: Response, next: NextFunction) => {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(401).json({ error: 'Unauthorized', status: 401 });
+    } else return next();
+  },
+
+  passport.authenticate('local', { session: false, failWithError: true }),
+
+  (err: unknown, _: Request, res: Response, next: NextFunction) => {
+    if (isAuthenticationError(err)) {
+      return res.status(401).json({ error: 'Unauthorized', status: 401 });
+    } else return next(err);
+  },
+
   asyncHandler(async (req: Request, res: Response) => {
     const user = req.user as Express.User;
     const token = await generateAccessToken(user);
