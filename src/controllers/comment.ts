@@ -1,4 +1,4 @@
-import { RequestHandler, Request, Response } from 'express';
+import { RequestHandler, Request, Response, NextFunction } from 'express';
 import { matchedData, validationResult } from 'express-validator';
 import asyncHandler from 'express-async-handler';
 
@@ -18,7 +18,9 @@ type CommentFilteringCriteria = CommentFilterOptions & {
 const getCommentsHandler: RequestHandler = asyncHandler(async (req, res) => {
   const errors = validationResult(req);
   if (!errors.isEmpty()) {
-    res.status(400).json({ error: 'Bad Request', ...errors.mapped() });
+    res
+      .status(400)
+      .json({ error: 'Bad Request', status: 400, ...errors.mapped() });
     return;
   }
 
@@ -72,13 +74,38 @@ const getCommentReplies = [
   getCommentsHandler,
 ];
 
+interface AuthenticationError extends Error {
+  name: 'AuthenticationError';
+}
+
+function isAuthenticationError(err: unknown): err is AuthenticationError {
+  return (
+    typeof err === 'object' &&
+    err !== null &&
+    'name' in err &&
+    (err as { name: string }).name === 'AuthenticationError'
+  );
+}
+
 const createComment = [
-  passport.authenticate('jwt', { session: false }),
+  passport.authenticate('jwt', { session: false, failWithError: true }),
+
+  (err: unknown, _: Request, res: Response, next: NextFunction) => {
+    if (isAuthenticationError(err)) {
+      return res.status(401).json({ error: 'Unauthorized', status: 401 });
+    } else return next(err);
+  },
+
   ...validation.newComment(),
   asyncHandler(async (req: Request, res: Response) => {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
-      res.status(400).json({ error: 'Bad Request', detail: errors.mapped() });
+      res.status(400).json({
+        status: 400,
+        error: 'Bad Request',
+        type: 'validation',
+        detail: errors.mapped(),
+      });
       return;
     }
 
@@ -86,26 +113,34 @@ const createComment = [
     const data = matchedData<NewCommentData>(req);
     const { postId, parentCommentId, targetUserId, content } = data;
 
+    if (postId && parentCommentId) {
+      res.status(400).json({
+        error: 'Bad Request',
+        msg: 'A comment submission can have either a post ID or a parent comment ID, but not both.',
+      });
+    }
+
     const isValidRequest =
       (parentCommentId && targetUserId) || (!parentCommentId && !targetUserId);
     if (!isValidRequest) {
       res.status(400).json({
         error: 'Bad Request',
-        detail:
-          'Invalid comment structure. A base comment cannot have a target user, and a reply must have both a parent comment ID and a target user.',
+        msg: 'Invalid comment structure. A post comment cannot have a target user, and a reply must have both a parent comment ID and a target user.',
       });
       return;
     }
 
     const [post, parentComment, validSiblingReplyTarget] = await Promise.all([
-      db.post.findUnique({
-        where: { id: postId },
-        select: { id: true, published: true },
-      }),
+      postId
+        ? db.post.findUnique({
+            where: { id: postId },
+            select: { id: true, published: true },
+          })
+        : null,
       parentCommentId
         ? db.comment.findUnique({
             where: { id: parentCommentId },
-            select: { id: true, authorId: true, postId: true },
+            include: { post: { select: { published: true } } },
           })
         : null,
       targetUserId
@@ -116,10 +151,10 @@ const createComment = [
         : null,
     ]);
 
-    if (!post || post.published === false) {
+    if (postId && !post) {
       res.status(404).json({
         error: 'Not Found',
-        detail: 'Post not found',
+        msg: 'Post not found',
       });
       return;
     }
@@ -132,13 +167,22 @@ const createComment = [
       return;
     }
 
-    if (parentComment && parentComment.postId != post.id) {
-      res.status(400).json({
-        error: 'Bad Request',
-        detail:
-          "The parent comment's post ID does not match the provided post ID",
+    if (
+      (post && post.published === false) ||
+      (parentComment && parentComment.post.published === false)
+    ) {
+      res.status(404).json({
+        error: 'Not Found',
+        msg: 'Post not found',
       });
       return;
+    }
+
+    if (parentComment && parentComment.parentCommentId) {
+      res.status(400).json({
+        error: 'Bad Request',
+        msg: 'A reply can only be made to a top-level comment. This parent comment is already a reply.',
+      });
     }
 
     const isInvalidTarget =
@@ -148,14 +192,23 @@ const createComment = [
     if (isInvalidTarget) {
       res.status(400).json({
         error: 'Bad Request',
-        detail: 'The specified user cannot be replied to in this context.',
+        msg: 'The specified user cannot be replied to in this context.',
       });
     }
 
-    const newComment = await db.comment.create({
-      data: { authorId: user.id, postId, parentCommentId, content },
+    await db.comment.create({
+      data: {
+        authorId: user.id,
+        postId: postId ?? parentComment?.postId,
+        parentCommentId,
+        targetUserId,
+        content,
+      },
     });
-    res.status(201).json(newComment);
+
+    res
+      .status(201)
+      .json({ success: true, msg: 'Comment created successfully' });
   }),
 ];
 

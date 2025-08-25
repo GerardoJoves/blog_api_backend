@@ -142,7 +142,7 @@ const commentId = () => paramIntId('commentId');
 const userCredentials = () => [password(), username()];
 
 const newComment = () => [
-  bodyIntId('postId'),
+  bodyIntId('postId').optional(),
   bodyIntId('parentCommentId').optional(),
   bodyIntId('targetUserId').optional(),
   commentContent(),
