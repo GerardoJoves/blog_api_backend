@@ -56,6 +56,7 @@ const getPosts = [
 ];
 
 const getPost = [
+  optionalJwtAuth,
   validation.postId(),
   asyncHandler(async (req: Request, res: Response) => {
     const errors = validationResult(req);
@@ -66,15 +67,24 @@ const getPost = [
 
     const { postId } = matchedData<{ postId: number }>(req);
     const post = await db.post.findUnique({
-      where: { id: postId, published: true },
+      where: { id: postId },
       include: { author: { select: { id: true, username: true } } },
     });
+
     if (!post) {
       res.status(404).json({ error: 'Not Found' });
       return;
     }
 
-    res.json(post);
+    if (post.published) {
+      res.json(post);
+      return;
+    } else if (req.isAuthenticated() && req.user?.role === 'ADMIN') {
+      res.json(post);
+      return;
+    }
+
+    res.status(404).json({ error: 'Not Found' });
   }),
 ];
 
