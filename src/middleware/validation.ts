@@ -9,6 +9,7 @@ export type PostFilterOptions = {
   sort?: { by: string; order: Order };
   limit?: number;
   keyword?: string;
+  published?: boolean;
 };
 
 export type CommentFilterOptions = {
@@ -78,6 +79,8 @@ const queryLimit = () =>
     .toInt()
     .customSanitizer((val: number) => (val > 20 ? 20 : val));
 
+const queryPublished = () => query('published').optional().toBoolean();
+
 const username = () =>
   body('username')
     .trim()
@@ -128,6 +131,7 @@ const postFilterOptions = () => [
   queryLimit(),
   queryKeyword(),
   querySort({ options: ['created'] }),
+  queryPublished(),
 ];
 
 const commentFilterOptions = () => [

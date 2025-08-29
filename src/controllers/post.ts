@@ -9,8 +9,10 @@ import validation, {
   PostData,
 } from 'src/middleware/validation.js';
 import { Prisma } from '@prisma/client';
+import optionalJwtAuth from 'src/middleware/optionalJwtAuth.js';
 
 const getPosts = [
+  optionalJwtAuth,
   ...validation.postFilterOptions(),
   asyncHandler(async (req: Request, res: Response) => {
     const errors = validationResult(req);
@@ -20,22 +22,28 @@ const getPosts = [
     }
 
     const filterOptions = matchedData<PostFilterOptions>(req);
-    const { page = 1, limit = 10, sort, keyword } = filterOptions;
+    const { page = 1, limit = 10, sort, keyword, published } = filterOptions;
     const offset = (page - 1) * limit;
     const dbQuery: Prisma.PostFindFirstArgs = {
       skip: offset,
       take: limit,
-      where: { published: true },
-      orderBy: { createdAt: 'desc' }, // default order
+      orderBy: { createdAt: sort?.by === 'created' ? sort.order : 'desc' },
       include: { author: { select: { username: true } } },
     };
-    if (sort?.by === 'created') {
-      dbQuery.orderBy = { createdAt: sort.order };
+
+    if (req.isAuthenticated() && req.user.role === 'ADMIN') {
+      if (typeof published === 'boolean') {
+        dbQuery.where = { ...dbQuery.where, published: published };
+      }
+    } else {
+      // Regular users can only see published posts
+      dbQuery.where = { ...dbQuery.where, published: true };
     }
+
     if (keyword) {
       dbQuery.where = {
+        ...dbQuery.where,
         title: { contains: keyword, mode: 'insensitive' },
-        published: true,
       };
     }
 
