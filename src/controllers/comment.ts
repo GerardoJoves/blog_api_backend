@@ -1,14 +1,14 @@
 import { RequestHandler, Request, Response, NextFunction } from 'express';
 import { matchedData, validationResult } from 'express-validator';
 import asyncHandler from 'express-async-handler';
+import { Prisma } from '@prisma/client';
+import passport from 'passport';
 
 import db from '../lib/prisma.js';
 import validation, {
   CommentFilterOptions,
   NewCommentData,
-} from 'src/middleware/validation.js';
-import { Prisma } from '@prisma/client';
-import passport from 'passport';
+} from '../middleware/validation.js';
 
 type CommentFilteringCriteria = CommentFilterOptions & {
   postId: number;

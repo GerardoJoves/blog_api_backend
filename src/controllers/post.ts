@@ -2,14 +2,14 @@ import { Request, Response } from 'express';
 import { matchedData, validationResult } from 'express-validator';
 import asyncHandler from 'express-async-handler';
 import passport from 'passport';
+import { Prisma } from '@prisma/client';
 
 import db from '../lib/prisma.js';
 import validation, {
   PostFilterOptions,
   PostData,
-} from 'src/middleware/validation.js';
-import { Prisma } from '@prisma/client';
-import optionalJwtAuth from 'src/middleware/optionalJwtAuth.js';
+} from '../middleware/validation.js';
+import optionalJwtAuth from '../middleware/optionalJwtAuth.js';
 
 const getPosts = [
   optionalJwtAuth,

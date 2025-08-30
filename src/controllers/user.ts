@@ -6,7 +6,7 @@ import jwt from 'jsonwebtoken';
 import dotenv from 'dotenv';
 import passport from 'passport';
 
-import validation from 'src/middleware/validation.js';
+import validation from '../middleware/validation.js';
 import db from '../lib/prisma.js';
 
 type UserCredentials = {
