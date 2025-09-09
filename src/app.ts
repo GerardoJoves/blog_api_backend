@@ -1,4 +1,5 @@
 import express from 'express';
+import serverless from 'serverless-http';
 import cors from 'cors';
 
 import './config/passport.js';
@@ -8,7 +9,6 @@ import usersRouter from './routes/users.js';
 import commentsRouter from './routes/comments.js';
 
 const app = express();
-const PORT = process.env.PORT || 3000;
 
 app.use(cors());
 
@@ -19,4 +19,4 @@ app.use('/users', usersRouter);
 app.use('/posts', postsRouter);
 app.use('/comments', commentsRouter);
 
-app.listen(PORT, () => console.log(`App running on port ${PORT}`));
+export const handler = serverless(app);
