@@ -8,8 +8,6 @@
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
     "dev": "netlify dev",
-    "build": "npx tsc",
-    "start": "node dist/app.js",
     "postinstall": "prisma generate",
     "type-check": "tsc --noEmit",
     "prepare": "simple-git-hooks"
