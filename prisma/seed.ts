@@ -14,6 +14,7 @@ const generateMockBlogPost = (
     published: true,
     title: title ?? faker.lorem.sentence(),
     content: faker.lorem.paragraphs(5, '\n\n'),
+    featuredImg: faker.image.urlPicsumPhotos({ width: 1200, height: 700 }),
     createdAt: createdAt ?? faker.date.past(),
     updatedAt: faker.date.recent(),
   };

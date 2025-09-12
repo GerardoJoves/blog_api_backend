@@ -28,6 +28,7 @@ export type NewCommentData = {
 export type PostData = {
   title: string;
   content: string;
+  featuredImg: string;
   published: boolean;
 };
 
@@ -120,9 +121,16 @@ const postTitle = () =>
     .isLength({ min: 1 })
     .withMessage('Post title can not be empty.');
 
+const postFeaturedImg = () =>
+  body('featuredImg')
+    .trim()
+    .isLength({ min: 1 })
+    .withMessage('Post featured image can not be empty');
+
 const postData = () => [
   postContent(),
   postTitle(),
+  postFeaturedImg(),
   body('published').isBoolean().toBoolean(),
 ];
 
